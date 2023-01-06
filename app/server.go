@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"io"
+	// "io"
 	"net"
 	"os"
 )
@@ -27,20 +27,22 @@ func main() {
 
 	defer conn.Close()
 
+	buf := make([]byte, 1024)
 	for {
-		buf := make([]byte, 1024)
 
-		if _,err :=conn.Read(buf); err != nil {
-			if err == io.EOF {
-				break
-			} else {
-				fmt.Println("error reading from client: ", err.Error())
-				os.Exit(1)
-			}
+		_,err := conn.Read(buf)
+		if err != nil {			
+			fmt.Println("error reading from client: ", err.Error())
+			os.Exit(1)
 		}
 
+
 		// we have hardcoded the reply for now
-		conn.Write([]byte("+PONG\r\n"))
+		_, err = conn.Write([]byte("+PONG\r\n"))
+		if err != nil {
+			fmt.Println("error writing to connection: ", err.Error())
+			os.Exit(1)	
+		}
 	}
 
 }
