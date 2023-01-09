@@ -129,13 +129,13 @@ func processSetCommand(key string, value string, expiry_enabled bool, expiry_val
 		expiryEnabled: expiry_enabled,
 	}
 	// write OK message to connection
-	to_write := "+\""+"OK"+"\"\r\n"
+	to_write := "+OK"+"\r\n"
 	writeConnection(to_write, conn)
 }
 
 func processGetCommand(key string, conn net.Conn){
 	value := store[key].val
-	to_write := "+\""+value+"\"\r\n"
+	to_write := "+"+value+"\r\n"
 
 	if store[key].expiryEnabled {
 		start_time := (store[key].setTime).UnixNano() / int64(time.Millisecond)
