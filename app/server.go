@@ -60,56 +60,64 @@ func handleConnection(conn net.Conn){
 		}
 
 		// 5th character reads the length of 1st input
-		input_length, _ := strconv.Atoi(strings.Split(string(buf),"")[5])
 		// As per the RESP specification from 8th character reads input
-		input_command := string(buf)[8:8+input_length]
 
-		if strings.ToLower(input_command) == "echo" {
-			input_len := len(strings.Split(string(buf),"")[0:read_input_len])
-			if input_len < 15 {
+		input_command := strings.Split(string(buf[0:read_input_len]), "\r\n")
+		command := input_command[2]
+		fmt.Println(int64(time.Millisecond))
+		if strings.ToLower(command) == "echo" {
+			if len(input_command) < 4 {
 				processEchoCommand("", conn)	
 			} else {
-				to_echo := string(buf)[14+input_length:read_input_len-2]
+				to_echo := input_command[4]
 				processEchoCommand(to_echo, conn)
 			}
 			continue
-		} else if strings.ToLower(input_command) == "set" {
-			expiry_enabled := false
+		} else if strings.ToLower(command) == "set" {
+			expire_option_given := false
 			expiry_value := 0
-			// example "*3\r\n$3\r\nset\r\n$5\r\nhello\r\n$5\r\nworld\r\n"
-			key_len_string := readValueFromRESP(string((buf)[14:read_input_len]))
-			key_len, _ := strconv.Atoi(readValueFromRESP(string((buf)[14:read_input_len])))
-			key := readValueFromRESP(string((buf)[16+len(key_len_string):read_input_len]))
-
-			value_len_string := readValueFromRESP(string((buf)[(19+len(key_len_string)+key_len):read_input_len]))
-			value_len,_ := strconv.Atoi(value_len_string)
-			fmt.Println(value_len)
-			value := string(buf)[23+key_len: 23+key_len+value_len]
-			
-			num_options, _ := strconv.Atoi(strings.Split(string(buf),"")[1])
-			// PX (expiry) option is provided or not
-			if num_options > 3{
-				expiry_enabled = true
-				expiry_value, _ = strconv.Atoi(string(buf)[37+key_len+value_len: read_input_len -2])
+			if len(input_command) < 7 {
+				to_write := "-ERR unknown command \r\n"
+				writeConnection(to_write, conn)
+				continue
 			}
 
-			processSetCommand(key,value,expiry_enabled, int64(expiry_value),conn)
+			key := input_command[4]
+			value := input_command[6]
+			// PX (expiry) option is provided or not
+			if len(input_command) > 8 {
+				if input_command[8] == "PX" {
+					expire_option_given = true
+					expiry_value, _ = strconv.Atoi(input_command[10])
+				} else {
+					to_write := "-ERR unknown command \r\n"
+					writeConnection(to_write, conn)
+					continue
+				}
+			}
+
+			processSetCommand(key,value,expire_option_given, int64(expiry_value),conn)
 			continue
-		} else if strings.ToLower(input_command) == "get" {
-			key := string(buf)[17:read_input_len-2]
+		} else if strings.ToLower(command) == "get" {
+			key := input_command[4]
 			
 			processGetCommand(key,conn)
 			continue
-		}else {
+		}else if strings.ToLower(command) == "ping"{
 			to_write := "+PONG\r\n"
-			writeConnectionSuccess(to_write, conn)
+			writeConnection(to_write, conn)
+			continue
+		} else {
+			to_write := "-ERR unknown command \r\n"
+			writeConnection(to_write, conn)
+			continue
 		}
 	}
 }
 
 func processEchoCommand(input string, conn net.Conn){
 	to_write := "+"+input+"\r\n"
-	writeConnectionSuccess(to_write, conn)
+	writeConnection(to_write, conn)
 }
 
 func processSetCommand(key string, value string, expiry_enabled bool, expiry_value int64, conn net.Conn){
@@ -122,7 +130,7 @@ func processSetCommand(key string, value string, expiry_enabled bool, expiry_val
 	}
 	// write OK message to connection
 	to_write := "+\""+"OK"+"\"\r\n"
-	writeConnectionSuccess(to_write, conn)
+	writeConnection(to_write, conn)
 }
 
 func processGetCommand(key string, conn net.Conn){
@@ -137,26 +145,13 @@ func processGetCommand(key string, conn net.Conn){
 		}
 	}
 
-	writeConnectionSuccess(to_write, conn)
+	writeConnection(to_write, conn)
 }
 
-func writeConnectionSuccess(reply string, conn net.Conn){
+func writeConnection(reply string, conn net.Conn){
 	_, err := conn.Write([]byte(reply))
 		if err != nil {
 			fmt.Println("error writing to connection: ", err.Error())
 			os.Exit(1)	
 	}
-}
-
-func readValueFromRESP(str string) string {
-	value := ""
-	for i:=0; i<len(str);i++ {
-		if string(str[i]) != "\r" {
-			value = value + string(str[i])
-		} else {
-			break
-		}
-	}
-
-	return value
 }
