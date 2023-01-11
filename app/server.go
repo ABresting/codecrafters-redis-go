@@ -64,7 +64,7 @@ func handleConnection(conn net.Conn){
 
 		input_command := strings.Split(string(buf[0:read_input_len]), "\r\n")
 		command := input_command[2]
-		fmt.Println(int64(time.Millisecond))
+
 		if strings.ToLower(command) == "echo" {
 			if len(input_command) < 4 {
 				processEchoCommand("", conn)	
@@ -86,7 +86,7 @@ func handleConnection(conn net.Conn){
 			value := input_command[6]
 			// PX (expiry) option is provided or not
 			if len(input_command) > 8 {
-				if input_command[8] == "PX" {
+				if strings.ToLower(input_command[8]) == "px" {
 					expire_option_given = true
 					expiry_value, _ = strconv.Atoi(input_command[10])
 				} else {
